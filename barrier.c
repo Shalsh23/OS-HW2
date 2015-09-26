@@ -10,7 +10,16 @@ pthread_mutex_t my_lock;
 pthread_cond_t my_cv;
 int num_threads;
 
-void mybarrier_init(int count)
+struct mythread_barrier 
+{
+} mythread_barrier_t;
+
+struct mythread_barrierattr 
+{
+} mythread_barrierattr_t;
+
+
+void mythread_barrier_init(mythread_barrier_t barrier, mythread_barrierattr_t attr, unsigned count)
 {
 	n = 0;
 	num_threads = count;
@@ -21,7 +30,7 @@ void mybarrier_init(int count)
 	return;
 }
 int i = 0;
-void mybarrier_wait()
+void mythread_barrier_wait()
 {
 	printf("in barrier wait %d", ++i);
 	pthread_mutex_lock(&my_lock);
@@ -46,6 +55,16 @@ void mybarrier_wait()
 	return;
 }
 
+void mythread_barrier_destroy(mythread_barrier_t barrier)
+{
+	pthread_mutex_destroy(my_lock);
+	pthread_cond_destroy(my_cv);
+	n = NULL;
+	num_threads = NULL;
+
+	return;
+}
+
 void* f1()
 {
 	printf("\n in thread 1");
@@ -53,7 +72,7 @@ void* f1()
 	v1 = 1;
 	
 	//pthread_barrier_wait(&our_barrier);
-	mybarrier_wait();
+	mythread_barrier_wait();
 	printf("\n v1 = %d, v2 = %d, v3 = %d", v1, v2, v3);
 	return;
 }
@@ -65,7 +84,7 @@ void* f2()
 	v2 = 2;
 	
 	//pthread_barrier_wait(&our_barrier);
-	mybarrier_wait();	
+	mythread_barrier_wait();	
 	printf("\n v1 = %d, v2 = %d, v3 = %d", v1, v2, v3);
 	return;
 }
@@ -77,7 +96,7 @@ void* f3()
 	v3 = 3;
 	
 	//pthread_barrier_wait(&our_barrier);	
-	mybarrier_wait();
+	mythread_barrier_wait();
 	printf("\n v1 = %d, v2 = %d, v3 = %d", v1, v2, v3);
 	return;
 }
@@ -86,7 +105,8 @@ int main()
 {
 	pthread_t t1, t2, t3;
 	//pthread_barrier_init(&our_barrier, NULL, 3);
-	mybarrier_init(3);
+	mythread_barrier_t barrier;
+	mythread_barrier_init(barrier, NULL, 3);
 
 	int* res;
 
@@ -98,6 +118,8 @@ int main()
 	pthread_join(t2, NULL);
 	pthread_join(t3, NULL);
 	//pthread_barrier_destroy(&our_barrier);
+
+	mythread_barrier_destroy(barrier);
 
 	printf("\n exiting \n");
 }
