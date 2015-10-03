@@ -9,7 +9,7 @@ INCLUDES  += -I. -I/ncsu/gcc346/include/c++/ -I/ncsu/gcc346/include/c++/3.4.6/ba
 LIB       := -L/ncsu/gcc346/lib
 
 default:
-	$(CXX) -v -g -lpthread -Wall -Wextra $(EXECUTABLE).cpp -o $(EXECUTABLE) $(INCLUDES) $(LIB) 
+	$(CXX) -v -O3 -lpthread -Wall -Wextra $(EXECUTABLE).cpp -o $(EXECUTABLE) $(INCLUDES) $(LIB) 
 
 clean:
 	rm -f $(EXECUTABLE)
