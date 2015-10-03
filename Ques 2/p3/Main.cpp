@@ -242,13 +242,14 @@ void *thread_func(void* doc_list)
                 {
                     pthread_mutex_lock(&docParsed_mutex);
                     docsParsed_flag = 1;
+                    printf("\nsetting doc parsed flag, tid = %08x \n", pthread_self());
                     pthread_cond_broadcast(&docsParsed_cv);
                     pthread_mutex_unlock(&docParsed_mutex);
                 }
-                // while(corpus_flag!=1)
-                //     pthread_cond_wait(&corpus_cv,&corpus_flag_mutex);
+                
                 break;
             }
+            
             else
             {
                 thread_doc.push_back(*itr); 
@@ -271,13 +272,12 @@ void *thread_func(void* doc_list)
         
         thread_doc.clear(); //empty the list   
     } 
-    // while(corpus_flag!=1)
-    //     pthread_cond_wait(&corpus_cv,&corpus_flag_mutex);
-    pthread_barrier_wait(&corpus_barrier);
-    printf("\nstarting tfidf calculation\n");
-    fflush(stdout);
-    // pthread_barrier_wait(&tfidf_barrier);
-
+ 
+    pthread_mutex_lock(&corpus_flag_mutex);
+    while(corpus_flag!=1)
+        pthread_cond_wait(&corpus_cv,&corpus_flag_mutex);
+    pthread_mutex_unlock(&corpus_flag_mutex);
+    
     VectorFactory v3;
     HASH_MAP_VECTOR thread_vector;
 
@@ -356,13 +356,12 @@ int main(int argc, char *argv[]) {
         pthread_create(&threads[i],NULL,&thread_func,&thread_work[i]);
     }
 
-    // pthread_barrier_wait(&corpus_barrier);
 
     //main creates the corpus occurence table; //added by Shalki from VectorFactory    
     while(docsParsed_flag!=1)
         pthread_cond_wait(&docsParsed_cv,&docParsed_mutex);
 
-    pd_itr = all_parsedDocs.begin(); 
+    //pd_itr = all_parsedDocs.begin(); 
     
     struct timeval corpus_start;
     struct timeval corpus_end;    
@@ -374,25 +373,23 @@ int main(int argc, char *argv[]) {
     long corpustime = calcDiffTime(&corpus_start, &corpus_end);
     fflush(stdout);
     printf("corpustime = %ld\n", corpustime);
-
     fflush(stdout);
+
+    all_parsedDocs_size = all_parsedDocs.size();
 
 
     //passing the control back to threads after corpusOccurenceTable creation so that threads can calculate tf-idf
-/*
+
     pthread_mutex_lock(&corpus_flag_mutex);
     corpus_flag = 1;
     pthread_cond_broadcast(&corpus_cv);
-    printf("broadcasted");
-    fflush(stdout);
     pthread_mutex_unlock(&corpus_flag_mutex);
+ 
     pthread_cond_destroy(&corpus_cv);
-    fflush(stdout); 
-*/
-    all_parsedDocs_size = all_parsedDocs.size();
+ 
 
-    pthread_barrier_wait(&corpus_barrier);
-    pthread_barrier_destroy(&corpus_barrier);
+    // pthread_barrier_wait(&corpus_barrier);
+    // pthread_barrier_destroy(&corpus_barrier);
 
 
     //waiting for threads to join after they have finished the calculation of tf-idf
