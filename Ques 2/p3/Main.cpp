@@ -388,10 +388,6 @@ int main(int argc, char *argv[]) {
     pthread_cond_destroy(&corpus_cv);
  
 
-    // pthread_barrier_wait(&corpus_barrier);
-    // pthread_barrier_destroy(&corpus_barrier);
-
-
     //waiting for threads to join after they have finished the calculation of tf-idf
     for(i=0;i<n;i++)
     {
