@@ -62,7 +62,7 @@ pthread_mutex_t vector_lock;
 HASH_MAP_VECTOR vectors;
 float all_parsedDocs_size;
 int num_pdocs = 0;
-pthread_mutex_t num_pdocs_lock;
+//pthread_mutex_t num_pdocs_lock;
 pthread_barrier_t corpus_barrier, pdocs_barrier;
 
 void loadTestDocs(char *oldDirPrev) {
@@ -222,7 +222,6 @@ struct timeval createvector_start;
 struct timeval createvector_end;
 struct timeval dump_start;
 struct timeval dump_end;
-int counter=0;
 
 //author: Shalki
 void *thread_func(void* doc_list)
@@ -234,23 +233,25 @@ void *thread_func(void* doc_list)
 
 
     while(docsParsed_flag!=1)       
-    {
+    {   printf("\n%d\n",num_pdocs); fflush(stdout);
         if(thread_doc.empty())
-        {
+        {   printf("\np2 %d\n",num_pdocs); fflush(stdout);
             pthread_mutex_lock(&doc_lock);
-
             if(itr==docs.end())
-            {   
-                // if(docsParsed_flag != 1 && num_pdocs == docs.size())
-                // {
-                    // pthread_mutex_lock(&docParsed_mutex);
-                    // docsParsed_flag = 1;
-                    // printf("\nsetting doc parsed flag, tid = %08x \n", pthread_self());
-                    // pthread_cond_broadcast(&docsParsed_cv);
-                    // pthread_mutex_unlock(&docParsed_mutex);
-                                                    pthread_mutex_unlock(&doc_lock);
-                      pthread_barrier_wait(&pdocs_barrier);
-                // }
+               { printf("yes"); fflush(stdout);}
+                else {printf("no"); fflush(stdout);}
+            if(itr==docs.end())
+            {   printf("\np3 %d\n",num_pdocs);
+                if(docsParsed_flag != 1 && num_pdocs == docs.size())
+                {   printf("\np4 %d\n",num_pdocs);
+                    pthread_mutex_lock(&docParsed_mutex);
+                    docsParsed_flag = 1;
+                    printf("\nsetting doc parsed flag, tid = %08x \n", pthread_self());
+                    pthread_cond_broadcast(&docsParsed_cv);
+                    pthread_mutex_unlock(&docParsed_mutex);
+                    //       pthread_barrier_wait(&pdocs_barrier);
+                }
+                pthread_mutex_unlock(&doc_lock);
 
                 break;
             }
@@ -271,11 +272,14 @@ void *thread_func(void* doc_list)
         HASH_MAP_PARSED_DOCS parsed_thread_doc = v1.createParsedDoc(parser, thread_doc);   //parsing individual doc by the thread 
         
         pthread_mutex_lock(&allParsedDocs_lock);
+        num_pdocs++;
+        printf("\nnum_pdocs=%d\n",num_pdocs);   fflush(stdout);
         all_parsedDocs.insert(parsed_thread_doc.begin(), parsed_thread_doc.end());
         thread_list_pdocs.insert(parsed_thread_doc.begin(), parsed_thread_doc.end());
         pthread_mutex_unlock(&allParsedDocs_lock);
         
-        thread_doc.clear(); //empty the list   
+        thread_doc.clear(); //empty the list  
+        printf("p1 %d",num_pdocs); fflush(stdout); 
     } 
  
     pthread_barrier_wait(&corpus_barrier);
@@ -360,7 +364,7 @@ int main(int argc, char *argv[]) {
 
     pthread_mutex_init(&vector_lock,NULL);  //lock the hash map vector while inserting the vector created by each thread
 
-    pthread_mutex_init(&num_pdocs_lock,NULL);
+    // pthread_mutex_init(&num_pdocs_lock,NULL);
 
     printf("docs.size()=%d",docs.size());fflush(stdout);
    
@@ -372,10 +376,11 @@ int main(int argc, char *argv[]) {
 
 
     //main creates the corpus occurence table; //added by Shalki from VectorFactory    
-    // while(docsParsed_flag!=1)
-    //     pthread_cond_wait(&docsParsed_cv,&docParsed_mutex);
-
-    pthread_barrier_wait(&pdocs_barrier);
+    pthread_mutex_lock(&docParsed_mutex);
+    while(docsParsed_flag!=1)
+        pthread_cond_wait(&docsParsed_cv,&docParsed_mutex);
+    pthread_mutex_unlock(&docParsed_mutex);
+    // pthread_barrier_wait(&pdocs_barrier);
  
     struct timeval corpus_start;
     struct timeval corpus_end;    
@@ -410,7 +415,6 @@ int main(int argc, char *argv[]) {
         pthread_join(threads[i], NULL);    
     }
 
-    printf("\ncounter=%d\n",counter);
 //dump the top 10 similar-docs for each document    
 #ifndef AFFIXES_ONLY
     gettimeofday(&dump_start, NULL); 
