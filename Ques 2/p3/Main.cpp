@@ -124,9 +124,9 @@ void loadTestDocs(char *oldDirPrev) {
                && (namelist[i]->d_name[len-2] == 'x')
                && (namelist[i]->d_name[len-1] == 't'))
             {
-	      fileName = (char*)malloc(strlen(cwd) - strlen(oldDirPrev) + strlen(namelist[i]->d_name)+1);
-	      strcpy(fileName, &cwd[strlen(oldDirPrev)]);
-	      strcat(fileName, namelist[i]->d_name);
+          fileName = (char*)malloc(strlen(cwd) - strlen(oldDirPrev) + strlen(namelist[i]->d_name)+1);
+          strcpy(fileName, &cwd[strlen(oldDirPrev)]);
+          strcat(fileName, namelist[i]->d_name);
                docs.push_back(fileName);
             }
         }
@@ -154,7 +154,7 @@ void dumpVectors(HASH_MAP_VECTOR vectors) {
         DocumentVector *dv1 = (*it1).second;
         
         cout << file1 <<endl;
-	//        cout << dv1->toString()<<endl;
+    //        cout << dv1->toString()<<endl;
     }
 }
 
@@ -205,8 +205,8 @@ void dumpTop10Similarities(HASH_MAP_VECTOR vectors) {
             
             while( (it != files->end()) && count < 10)
             {
-//	      cout<<"      - " <<(1.0f - similarity) <<" = " <<&(*it)[strlen(cwd)]<<endl;
-  	        cout<<"      - " <<(1.0f - similarity) <<" = " <<(*it)<<endl;
+//        cout<<"      - " <<(1.0f - similarity) <<" = " <<&(*it)[strlen(cwd)]<<endl;
+            cout<<"      - " <<(1.0f - similarity) <<" = " <<(*it)<<endl;
                 it++;
                 count++; 
             }           
@@ -282,13 +282,13 @@ void *thread_func(void* doc_list)
         printf("p1 %d",num_pdocs); fflush(stdout); 
     } 
  
-    pthread_barrier_wait(&corpus_barrier);
-    // pthread_mutex_lock(&corpus_flag_mutex);
-    // printf("sleeping!"); fflush(stdout);
-    // while(corpus_flag!=1)
-    //     pthread_cond_wait(&corpus_cv,&corpus_flag_mutex);
-    // counter++;
-    // pthread_mutex_unlock(&corpus_flag_mutex);
+    // pthread_barrier_wait(&corpus_barrier);
+    pthread_mutex_lock(&corpus_flag_mutex);
+    printf("sleeping!"); fflush(stdout);
+    while(corpus_flag!=1)
+        pthread_cond_wait(&corpus_cv,&corpus_flag_mutex);
+    //counter++;
+    pthread_mutex_unlock(&corpus_flag_mutex);
     
     VectorFactory v3;
     HASH_MAP_VECTOR thread_vector;
@@ -304,7 +304,7 @@ void *thread_func(void* doc_list)
     pthread_exit(NULL);
 }
 
-	
+    
 
 
 
@@ -316,12 +316,12 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-	
-	n = atoi(argv[2]);
+    
+    n = atoi(argv[2]);
     pthread_t threads[n];
 
 
-	pthread_mutex_init(&doc_lock,NULL);
+    pthread_mutex_init(&doc_lock,NULL);
 
 
     //loading the test docs
@@ -398,15 +398,15 @@ int main(int argc, char *argv[]) {
 
     all_parsedDocs_size = all_parsedDocs.size();
 
-    pthread_barrier_wait(&corpus_barrier);
+    // pthread_barrier_wait(&corpus_barrier);
     //passing the control back to threads after corpusOccurenceTable creation so that threads can calculate tf-idf
 
-    // pthread_mutex_lock(&corpus_flag_mutex);
-    // corpus_flag = 1;
-    // pthread_cond_broadcast(&corpus_cv);
-    // pthread_mutex_unlock(&corpus_flag_mutex);
+    pthread_mutex_lock(&corpus_flag_mutex);
+    corpus_flag = 1;
+    pthread_cond_broadcast(&corpus_cv);
+    pthread_mutex_unlock(&corpus_flag_mutex);
  
-    // pthread_cond_destroy(&corpus_cv);
+    pthread_cond_destroy(&corpus_cv);
  
 
     //waiting for threads to join after they have finished the calculation of tf-idf
