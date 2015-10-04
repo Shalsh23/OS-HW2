@@ -11,11 +11,6 @@
 
 #include <pthread.h>
 
-#include "barrier.h"
-#include "mythread.h"
-#include "mythread_mutex.h"
-#include "cv.h"
-
 
 #define FALSE 0
 #define TRUE 1
