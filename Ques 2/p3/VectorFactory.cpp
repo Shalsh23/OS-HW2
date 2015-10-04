@@ -11,6 +11,9 @@
 
 extern char cwd[1024];
 
+extern int num_pdocs;
+extern pthread_mutex_t num_pdocs_lock;
+
 class VectorFactory {
 
     public:
@@ -50,6 +53,11 @@ HASH_MAP_PARSED_DOCS VectorFactory::createParsedDoc(Parser parser, list<char*> d
     gettimeofday(&parser_end, NULL); 
     long parsetime = calcDiffTime(&parser_start, &parser_end);
     printf("parsetime = %ld\n", parsetime);
+
+    pthread_mutex_lock(&num_pdocs_lock);
+    num_pdocs++;
+    printf("num_pdocs=%d",num_pdocs);
+    pthread_mutex_unlock(&num_pdocs_lock);
 
     return parsedDocs;
 }

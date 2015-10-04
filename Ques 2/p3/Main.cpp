@@ -11,6 +11,11 @@
 
 #include <pthread.h>
 
+#include "barrier.h"
+#include "mythread.h"
+#include "mythread_mutex.h"
+#include "cv.h"
+
 
 #define FALSE 0
 #define TRUE 1
@@ -58,10 +63,12 @@ pthread_mutex_t corpus_flag_mutex;
 HASH_MAP_OCCURENCE_TABLE corpusOccurences;
 typedef HASH_MAP_PARSED_DOCS::iterator pdocs_itr;
 pdocs_itr pd_itr;
-pthread_barrier_t corpus_barrier, tfidf_barrier;
 pthread_mutex_t vector_lock;
 HASH_MAP_VECTOR vectors;
 float all_parsedDocs_size;
+int num_pdocs = 0;
+pthread_mutex_t num_pdocs_lock;
+pthread_barrier_t corpus_barrier, pdocs_barrier;
 
 void loadTestDocs(char *oldDirPrev) {
     DIR* dir;
@@ -220,6 +227,7 @@ struct timeval createvector_start;
 struct timeval createvector_end;
 struct timeval dump_start;
 struct timeval dump_end;
+int counter=0;
 
 //author: Shalki
 void *thread_func(void* doc_list)
@@ -238,15 +246,17 @@ void *thread_func(void* doc_list)
 
             if(itr==docs.end())
             {   
-                if(docsParsed_flag != 1)
-                {
-                    pthread_mutex_lock(&docParsed_mutex);
-                    docsParsed_flag = 1;
-                    printf("\nsetting doc parsed flag, tid = %08x \n", pthread_self());
-                    pthread_cond_broadcast(&docsParsed_cv);
-                    pthread_mutex_unlock(&docParsed_mutex);
-                }
-                
+                // if(docsParsed_flag != 1 && num_pdocs == docs.size())
+                // {
+                    // pthread_mutex_lock(&docParsed_mutex);
+                    // docsParsed_flag = 1;
+                    // printf("\nsetting doc parsed flag, tid = %08x \n", pthread_self());
+                    // pthread_cond_broadcast(&docsParsed_cv);
+                    // pthread_mutex_unlock(&docParsed_mutex);
+                                                    pthread_mutex_unlock(&doc_lock);
+                      pthread_barrier_wait(&pdocs_barrier);
+                // }
+
                 break;
             }
             
@@ -273,19 +283,25 @@ void *thread_func(void* doc_list)
         thread_doc.clear(); //empty the list   
     } 
  
-    pthread_mutex_lock(&corpus_flag_mutex);
-    while(corpus_flag!=1)
-        pthread_cond_wait(&corpus_cv,&corpus_flag_mutex);
-    pthread_mutex_unlock(&corpus_flag_mutex);
+    pthread_barrier_wait(&corpus_barrier);
+    // pthread_mutex_lock(&corpus_flag_mutex);
+    // printf("sleeping!"); fflush(stdout);
+    // while(corpus_flag!=1)
+    //     pthread_cond_wait(&corpus_cv,&corpus_flag_mutex);
+    // counter++;
+    // pthread_mutex_unlock(&corpus_flag_mutex);
     
     VectorFactory v3;
     HASH_MAP_VECTOR thread_vector;
-
-    thread_vector = v3.cal_tfidf(thread_list_pdocs,corpusOccurences,all_parsedDocs_size);
-    pthread_mutex_lock(&vector_lock);
-    vectors.insert(thread_vector.begin(), thread_vector.end());
-    pthread_mutex_unlock(&vector_lock);
-
+    
+    if(!thread_list_pdocs.empty())
+    {
+        thread_vector = v3.cal_tfidf(thread_list_pdocs,corpusOccurences,all_parsedDocs_size);
+        pthread_mutex_lock(&vector_lock);
+        vectors.insert(thread_vector.begin(), thread_vector.end());
+        pthread_mutex_unlock(&vector_lock);
+    }
+    printf("exiting \n");
     pthread_exit(NULL);
 }
 
@@ -305,9 +321,7 @@ int main(int argc, char *argv[]) {
 	n = atoi(argv[2]);
     pthread_t threads[n];
 
-    pthread_barrier_init(&corpus_barrier,NULL,n+1);
 
-	
 	pthread_mutex_init(&doc_lock,NULL);
 
 
@@ -346,9 +360,14 @@ int main(int argc, char *argv[]) {
     pthread_mutex_init(&corpus_flag_mutex,NULL);
     pthread_cond_init(&corpus_cv, NULL);    //corpus created yet?
 
+    pthread_barrier_init(&corpus_barrier,NULL,n+1);
+    pthread_barrier_init(&pdocs_barrier,NULL,n+1);
+
     pthread_mutex_init(&vector_lock,NULL);  //lock the hash map vector while inserting the vector created by each thread
 
+    pthread_mutex_init(&num_pdocs_lock,NULL);
 
+    printf("docs.size()=%d",docs.size());fflush(stdout);
    
     //creating threads
     for(i=0;i<n;i++)
@@ -358,14 +377,15 @@ int main(int argc, char *argv[]) {
 
 
     //main creates the corpus occurence table; //added by Shalki from VectorFactory    
-    while(docsParsed_flag!=1)
-        pthread_cond_wait(&docsParsed_cv,&docParsed_mutex);
+    // while(docsParsed_flag!=1)
+    //     pthread_cond_wait(&docsParsed_cv,&docParsed_mutex);
 
-    //pd_itr = all_parsedDocs.begin(); 
-    
+    pthread_barrier_wait(&pdocs_barrier);
+ 
     struct timeval corpus_start;
     struct timeval corpus_end;    
     
+    pthread_mutex_lock(&allParsedDocs_lock);
     gettimeofday(&corpus_start, NULL); 
     VectorFactory v2;
     corpusOccurences = v2.createCorpusOccurenceTable(all_parsedDocs);
@@ -374,18 +394,19 @@ int main(int argc, char *argv[]) {
     fflush(stdout);
     printf("corpustime = %ld\n", corpustime);
     fflush(stdout);
+    pthread_mutex_unlock(&allParsedDocs_lock);
 
     all_parsedDocs_size = all_parsedDocs.size();
 
-
+    pthread_barrier_wait(&corpus_barrier);
     //passing the control back to threads after corpusOccurenceTable creation so that threads can calculate tf-idf
 
-    pthread_mutex_lock(&corpus_flag_mutex);
-    corpus_flag = 1;
-    pthread_cond_broadcast(&corpus_cv);
-    pthread_mutex_unlock(&corpus_flag_mutex);
+    // pthread_mutex_lock(&corpus_flag_mutex);
+    // corpus_flag = 1;
+    // pthread_cond_broadcast(&corpus_cv);
+    // pthread_mutex_unlock(&corpus_flag_mutex);
  
-    pthread_cond_destroy(&corpus_cv);
+    // pthread_cond_destroy(&corpus_cv);
  
 
     //waiting for threads to join after they have finished the calculation of tf-idf
@@ -394,7 +415,7 @@ int main(int argc, char *argv[]) {
         pthread_join(threads[i], NULL);    
     }
 
-
+    printf("\ncounter=%d\n",counter);
 //dump the top 10 similar-docs for each document    
 #ifndef AFFIXES_ONLY
     gettimeofday(&dump_start, NULL); 
