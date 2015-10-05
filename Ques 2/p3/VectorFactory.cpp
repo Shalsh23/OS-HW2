@@ -10,7 +10,8 @@
 #define HASH_MAP_PARSED_DOCS hash_map<char*, HASH_MAP_TOKENS, hash<char*>, eqstr>
 
 extern char cwd[1024];
-
+extern pthread_mutex_t normalizetime_lock;
+extern long normalizetime;
 // extern int num_pdocs;
 // extern pthread_mutex_t num_pdocs_lock;
 
@@ -91,7 +92,7 @@ HASH_MAP_VECTOR VectorFactory::cal_tfidf(HASH_MAP_PARSED_DOCS pDocs, HASH_MAP_OC
     HASH_MAP_OCCURENCE_TABLE corpusOccurences = coTable;
 
     HASH_MAP_PARSED_DOCS::const_iterator it1;
-    long normalizetime = 0;
+    // long normalizetime = 0;
     
     for ( it1=parsedDocs.begin() ; it1 != parsedDocs.end(); it1++ )
     {
@@ -121,10 +122,12 @@ HASH_MAP_VECTOR VectorFactory::cal_tfidf(HASH_MAP_PARSED_DOCS pDocs, HASH_MAP_OC
         gettimeofday(&normalize_start, NULL); 
         vectors[file] = dv->normalize();
         gettimeofday(&normalize_end, NULL); 
+
+        pthread_mutex_lock(&normalizetime_lock);
         normalizetime += calcDiffTime(&normalize_start, &normalize_end);
+        pthread_mutex_unlock(&normalizetime_lock);
     }
 
-    printf("normalizetime = %ld\n", normalizetime);
     return(vectors);
 }
 
@@ -156,7 +159,7 @@ HASH_MAP_VECTOR VectorFactory::createVectors(Parser parser, list<char*> docs){
     printf("corpustime = %ld\n", corpustime);
 
     HASH_MAP_PARSED_DOCS::const_iterator it1;
-    long normalizetime = 0;
+    //long normalizetime = 0;
     
     for ( it1=parsedDocs.begin() ; it1 != parsedDocs.end(); it1++ )
     {
@@ -188,7 +191,7 @@ HASH_MAP_VECTOR VectorFactory::createVectors(Parser parser, list<char*> docs){
         normalizetime += calcDiffTime(&normalize_start, &normalize_end);
     }
 
-    printf("normalizetime = %ld\n", normalizetime);
+    //printf("normalizetime = %ld\n", normalizetime);
     return(vectors);
 }
     
